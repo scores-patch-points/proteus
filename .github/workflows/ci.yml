@@ -1,0 +1,27 @@
+name: ci
+on: [push, pull_request]
+# The pharos-dependent tests need a pharos checkout beside this repo (the door's pointer is ../../pharos/lib/pharos.mjs), so CI runs only what needs no sibling repo
+# (the same rule slate's CI follows): every source parses, and the recipe-identity test, which needs only ffmpeg. The full suite runs locally: npm test.
+jobs:
+  portable:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [20, 22]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ matrix.node }}" }
+      - name: ffmpeg (linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: ffmpeg (macos)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+      - name: every source parses
+        shell: bash
+        run: for f in bin/*.mjs lib/*.mjs; do node --check "$f"; done
+      - name: recipe identity (needs ffmpeg only; fixtures are synthesised, nothing is downloaded)
+        run: node --test --test-name-pattern "recipe is identity by content" test/vfile.test.mjs

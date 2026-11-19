@@ -1,0 +1,10 @@
+{
+  "name": "proteus",
+  "version": "0.1.0",
+  "description": "Makes projected files from what other repos wrote to the pharos, and weaves the recipe and the evidence. A holon on the pharos; it calls no other repo.",
+  "type": "module",
+  "private": true,
+  "bin": { "proteus": "bin/proteus.mjs" },
+  "engines": { "node": ">=20" },
+  "scripts": { "test": "node --test test/vfile.test.mjs test/manage.test.mjs" }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "proteus",
+  "ground": ["placement", "vfile-pin", "vfile-evict"],
+  "figure": [],
+  "pattern": ["vfile", "vfile-check", "vfile-evicted"],
+  "out": ["vfile", "vfile-evicted"]
+}

@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+*.log
+# the pharos installer's receipts (hash-chained journal, plans that ran) hold this machine's absolute paths: local, like slate's gui/.pharos/
+door/.pharos/
+# the chunk cache and test scratch are rebuildable and large
+.test-tmp*/
+chunks/
