@@ -19,6 +19,6 @@ try {
     const cur = PF.live(ph, q.project, q.sequence).at(-1) || null, chk = ph.L.P.fold(ph.reader(), { kind: "vfile-check" }).entries.filter((e) => e.body && e.body.project === q.project && e.body.sequence === q.sequence).at(-1) || null;
     out({ pharos: ph.name, addr: PF.addrOf(q.project, q.sequence), vfile: cur && { id: cur.id, recipe: cur.body.recipe, projector: cur.body.projector, built: cur.body.header_sha256 != null, size: cur.body.size, cites: cur.of }, check: chk && { id: chk.id, result: chk.body.result, current: !!cur && chk.body.recipe === cur.body.recipe } });
   } else if (cmd === "record") {
-    const { clips, total, cites } = clipsFromPlacements(ph, { ...q, root: f.root }); out({ pharos: ph.name, ...(await VFL.record(ph, by, { ...q, clips, total, cite: cites }, { build: !!f.build, deep: !!f.deep, audio: !!f.audio, lg: !!f.lg })) });
+    const { clips, aclips, total, cites } = clipsFromPlacements(ph, { ...q, root: f.root }); out({ pharos: ph.name, sound: f.audio ? (aclips ? `A1 track (${aclips.length} clips)` : "each picture clip's own sound (no A1 in this sequence)") : undefined, ...(await VFL.record(ph, by, { ...q, clips, aclips, total, cite: cites }, { build: !!f.build, deep: !!f.deep, audio: !!f.audio, lg: !!f.lg })) });
   } else { const { v, ...r } = await VFL.check(ph, by, q, { deep: !!f.deep }); out({ pharos: ph.name, ...r }); }
 } catch (e) { console.error(`${e.code || "error"}: ${e.message}`); process.exit(1); }

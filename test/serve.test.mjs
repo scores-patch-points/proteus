@@ -82,3 +82,13 @@ test("FALSE IF: concurrent first requests build twice or tear: 8 simultaneous co
   assert.ok(all.every((b) => b.equals(all[0])) && all[0].length === r3.size);
   assert.equal(logs.filter((m) => m.startsWith(`built ${r3.recipe.slice(0, 12)}`)).length, 1, "built once, not once per request");
 });
+
+test("FALSE IF: the fold is repeated on every request, or a change is missed: 30 requests with nothing changed fold once; a recipe woven after that is visible on the very next request", async () => {
+  let folds = 0; const counting = Object.create(ph); counting.L = { ...ph.L, P: { ...ph.L.P, fold: (...a) => { folds++; return ph.L.P.fold(...a); } } };
+  const s2 = createServer(counting); await new Promise((ok) => s2.listen(0, "127.0.0.1", ok)); const b2 = `http://127.0.0.1:${s2.address().port}`;
+  try {
+    for (let i = 0; i < 30; i++) await (await get(`${b2}/status`)).arrayBuffer(); assert.equal(folds, 1, `folds after 30 unchanged requests: ${folds}`);
+    const c = clips(); c[0].in = 0.25; const r = await VFL.record(ph, by, { project: "fold", sequence: "Main", clips: c, total: 6 });
+    const st = await (await get(`${b2}/status`)).json(); assert.ok(st.some((x) => x.recipe === r.recipe), "the new recipe is served at once"); assert.equal(folds, 2, "one more fold, because something changed");
+  } finally { s2.close(); }
+});

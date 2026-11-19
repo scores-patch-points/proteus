@@ -21,7 +21,7 @@ const { v } = await VFL.open(ph, { project: "l", sequence: "Main" }, { deep: tru
 const md5s = (input, extra = []) => spawnSync("ffmpeg", ["-v", "error", ...extra, "-i", input, "-an", "-vf", "format=yuv420p", "-f", "framemd5", "-"], { maxBuffer: 1 << 26 }).stdout.toString().split("\n").filter((l) => l && !l.startsWith("#")).map((l) => l.split(",").pop().trim());
 // what each edit frame SHOULD be: the decoded frame j of the chunk the plan names (or black), independent of how the source was encoded
 const expectedMd5 = () => { const norm = clips().map((c) => ({ ...c })), pl = VFL.VF.plan(norm, total), cache = new Map(), get = (file) => cache.get(file) || cache.set(file, md5s(file)).get(file);
-  return pl.frames.map((x) => { if (!x) return get(path.join(CACHE, "lg1", "black.mp4"))[0]; const c = pl.need.get(x.key), m = get(LGF.chunkPath(c.media, c.crop, c.k)); return m[Math.min(x.j, m.length - 1)]; }); };
+  return pl.frames.map((x) => { if (!x) return get(path.join(CACHE, `lg${LGF.LV}`, "black.mp4"))[0]; const c = pl.need.get(x.key), m = get(LGF.chunkPath(c.media, c.crop, c.k)); return m[Math.min(x.j, m.length - 1)]; }); };
 
 test("FALSE IF: the picture is not the edit: every one of the 264 decoded frames equals, by hash, the frame the plan names in the cached chunks (mid-GOP starts, a 46-frame preroll, a keyframe start, a merged run, a chunk crossing, a black gap)", () => {
   const got = md5s(vf), want = expectedMd5(); assert.equal(got.length, want.length, `frame count (hidden frames must not be shown): got ${got.length}`);
@@ -61,4 +61,30 @@ test("FALSE IF: over HTTP it differs or will not seek: whole-file hash equals th
     const want = expectedMd5();
     for (const t of [1.0, 4.5, 8.5, 9.25]) { const r = await arun("ffmpeg", ["-v", "error", "-ss", String(t), "-i", url, "-an", "-vf", "format=yuv420p", "-frames:v", "1", "-f", "framemd5", "-"]); const m = r.stdout.toString().split("\n").filter((l) => l && !l.startsWith("#"))[0].split(",").pop().trim(); assert.equal(m, want[Math.round(t * 24)], `seek to ${t} s`); }
   } finally { srv.close(); }
+});
+
+// ---- batching: one ffmpeg process makes several chunks of a source. The claim is that it changes nothing about the bytes.
+const packets = (f) => spawnSync("ffmpeg", ["-v", "error", "-i", f, "-c", "copy", "-f", "framemd5", "-"], { maxBuffer: 1 << 26 }).stdout.toString().split("\n").filter((l) => l && !l.startsWith("#")).map((l) => l.split(",").pop().trim());
+test("FALSE IF: batching changes a chunk: for sources at 24, 25 and 29.97 fps, chunks made 3 at a time are identical, frame by frame, to the same chunks made one at a time", async () => {
+  const srcs = { s24: A, s25: path.join(tmp, "src", "c25.mov"), s2997: path.join(tmp, "src", "c2997.mov") };
+  ff("-f", "lavfi", "-i", "testsrc2=s=640x360:r=25:d=10", "-c:v", "libx264", "-g", "50", "-pix_fmt", "yuv420p", srcs.s25); ff("-f", "lavfi", "-i", "testsrc2=s=640x360:r=30000/1001:d=10", "-c:v", "libx264", "-g", "60", "-pix_fmt", "yuv420p", srcs.s2997);
+  for (const [name, src] of Object.entries(srcs)) {
+    const media = essence(src, { persist: false }), single = [], batched = [];
+    for (let k = 0; k < 3; k++) { const f = await LGF.makeChunk(src, media + "S", "", k); single.push(packets(f)); }                       // one process per chunk (a different essence key, so the cache keeps them apart)
+    const outs = await LGF.makeChunks(src, media + "B", "", 0, 3); for (const f of outs) batched.push(packets(f));                      // one process for all three
+    for (let k = 0; k < 3; k++) { assert.ok(single[k].length >= 48, `${name} chunk ${k} has frames`); assert.deepEqual(batched[k], single[k], `${name}: chunk ${k} differs when batched`); }
+  }
+});
+
+test("FALSE IF: the grouping leaks into the file: the same edit built with batches of 6 and with batch size 1 gives the same file, byte for byte", async () => {
+  const c = clips().map((x) => ({ ...x })), norm = c.map((x) => ({ ...x, crop: "" }));
+  fs.rmSync(CACHE, { recursive: true, force: true }); const a = await LGF.lgfold(norm, total, { audio: false, batch: 6 }); const ha = crypto.createHash("sha256").update(Buffer.concat([...VFL.VF.readRange(a, 0, a.size - 1)])).digest("hex");
+  fs.rmSync(CACHE, { recursive: true, force: true }); const b = await LGF.lgfold(norm, total, { audio: false, batch: 1 }); const hb = crypto.createHash("sha256").update(Buffer.concat([...VFL.VF.readRange(b, 0, b.size - 1)])).digest("hex");
+  assert.equal(ha, hb); assert.ok(a.made === b.made && a.made > 0, `chunks made: ${a.made} vs ${b.made}`);
+});
+
+test("FALSE IF: grouping is wrong: only uncached chunks, only consecutive chunks of the same source, never more than the batch size", () => {
+  const mkc = (src, k) => ({ src, media: "m" + src, crop: "", k }), need = [mkc("a", 0), mkc("a", 1), mkc("a", 2), mkc("a", 5), mkc("b", 3), mkc("a", 3), mkc("a", 4)];
+  const g = LGF.groups(need, 3).map((r) => r.map((c) => c.src + c.k).join(","));
+  assert.deepEqual(g.sort(), ["a0,a1,a2", "a3,a4,a5", "b3"].sort(), JSON.stringify(g));
 });

@@ -67,3 +67,31 @@ test("FALSE IF: over HTTP the sound is different: whole-file sha256 over the wir
     const s = await arun("ffmpeg", ["-v", "error", "-ss", "6.5", "-i", url, "-vn", "-t", "1", "-f", "s16le", "-ar", "48000", "-ac", "2", "-"]), want = sel(A, 3.9 + 0.5, 1); assert.equal(s.status, 0); assert.ok(s.stdout.equals(want), "seeked sound equals the source at the matching time");
   } finally { srv.close(); }
 });
+
+test("FALSE IF: a gap costs bytes: the same two clips with a 20 s gap between them must make a file less than 300 KB bigger than with no gap (unshared silence would add 3.84 MB)", async () => {
+  const mkc = (gap) => [clip(0, 2, 0.5, eA, A), clip(2 + gap, 4 + gap, 1.0, eB, B)];
+  const r0 = await VFL.record(ph, by, { project: "g0", sequence: "Main", clips: mkc(0), total: 4 }, { audio: true }), r20 = await VFL.record(ph, by, { project: "g20", sequence: "Main", clips: mkc(20), total: 24 }, { audio: true });
+  console.log(`# no gap ${r0.size} bytes, 20 s gap ${r20.size} bytes, difference ${r20.size - r0.size}`); assert.ok(r20.size - r0.size < 300_000, `gap added ${r20.size - r0.size} bytes`);
+  const { v: v20 } = await VFL.open(ph, { project: "g20", sequence: "Main" }), f = path.join(tmp, "g20.mp4"); writeVirtual(v20, f); const got = audioOf(f); assert.equal(got.length / FR, 24 * AR);
+  assert.ok(got.subarray(2 * AR * FR, 22 * AR * FR).every((x) => x === 0), "the gap is still silent"); assert.ok(got.subarray(22 * AR * FR).some((x) => x !== 0), "and sound resumes after it");
+});
+
+const { clipsFromPlacements } = await import("../lib/placements.mjs");
+test("FALSE IF: the sound is not A1's: with an A1 clip that covers only 1-3 s (and another that REPLACES the sound under a different picture), every other second is silent and the covered seconds equal direct cuts; a rebuild from the recorded recipe alone is identical", async () => {
+  const pic = [clip(0, 4, 0.5, eA, A), clip(4, 8, 1.0, eB, B)], snd = [clip(1, 3, 2.0, eA, A), clip(5, 7, 4.0, eA, A)];       // second sound clip: A's sound under B's picture
+  const r = await VFL.record(ph, by, { project: "a1", sequence: "Main", clips: pic, aclips: snd, total: 8 }, { audio: true, deep: true });
+  const r0 = await VFL.record(ph, by, { project: "a1own", sequence: "Main", clips: pic, total: 8 }, { audio: true }); assert.notEqual(r.recipe, r0.recipe, "A1 sound is part of the recipe");
+  const { v: va } = await VFL.open(ph, { project: "a1", sequence: "Main" }); const f = path.join(tmp, "a1.mp4"); writeVirtual(va, f); const got = audioOf(f), N = 8 * AR * FR, want = Buffer.alloc(N);
+  sel(A, 2.0, 2).copy(want, 1 * AR * FR); sel(A, 4.0, 2).copy(want, 5 * AR * FR); assert.equal(got.length, N); assert.ok(got.equals(want), "A1's sound, and silence everywhere else");
+  fs.rmSync(CACHE, { recursive: true, force: true }); const c = await VFL.check(ph, by, { project: "a1", sequence: "Main" }, { deep: true }); assert.equal(c.status, "identical", JSON.stringify({ e: c.expected, f: c.found }));
+  const e = ph.L.P.fold(ph.reader(), { kind: "vfile" }).entries.find((x) => x.body.project === "a1").body; assert.equal(e.audio.clips.length, 2);
+});
+
+test("FALSE IF: placements are read wrongly: A1 placements become the sound clips, and a sequence with no A1 falls back to the picture clips' own sound", () => {
+  const ph2 = new Pharos({ dir: path.join(tmp, "ph-placements"), lib: ph.L }), w = ph2.L.P.open(ph2.name, { dir: ph2.dir, writer: "slate-gui" }); ph2.L.P.weave(w, { cell: "DEF·Figure", kind: "kind", addr: "kind:placement", body: { name: "placement", cell: "INS·Figure" }, basis: {} });
+  const put = (seq, track, clipId, s, e, inn, p) => ph2.L.P.weave(w, { cell: "INS·Figure", kind: "placement", addr: `clip:${seq}:${clipId}`, body: { project: "pp", sequence: seq, track, clip: clipId, s, e, in: inn, out: inn + e - s, path: p, source: clipId }, of: [], basis: {} });
+  put("with", "V1", "v1", 0, 4, 0, A); put("with", "V1", "v2", 4, 8, 1, B); put("with", "A1", "a1", 1, 3, 2, A); put("without", "V1", "v1", 0, 4, 0, A);
+  const w1 = clipsFromPlacements(ph2, { project: "pp", sequence: "with" }), w0 = clipsFromPlacements(ph2, { project: "pp", sequence: "without" });
+  assert.equal(w1.clips.length, 2); assert.equal(w1.aclips.length, 1); assert.deepEqual([w1.aclips[0].s, w1.aclips[0].e, w1.aclips[0].in, w1.aclips[0].media], [1, 3, 2, eA]); assert.equal(w1.cites.length, 3, "the recipe cites the A1 placement too");
+  assert.equal(w0.aclips, null);
+});
