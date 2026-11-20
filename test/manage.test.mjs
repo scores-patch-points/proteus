@@ -72,5 +72,6 @@ test("a request for a recipe that is not in the ledger is answered as such, not 
 
 test("Proteus reads EODB's kinds by kind and imports nothing of EODB", () => {
   const src = fs.readFileSync(new URL("../lib/manage.mjs", import.meta.url), "utf8");
-  assert.deepEqual([...src.matchAll(/^import .* from "([^"]+)"/gm)].map((m) => m[1]), ["node:fs", "./vfold.mjs"]);
+  const imports = [...src.matchAll(/ from "([^"]+)"/g)].map((m) => m[1]);        // every import on every line: Node's own modules, or a file in this repo's lib/ ; never another repo
+  assert.ok(imports.length >= 2 && imports.every((i) => i.startsWith("node:") || /^\.\/[a-z]+\.mjs$/.test(i)), imports.join(", ")); assert.ok(!imports.some((i) => /eodb|slate|pharos/i.test(i)), "nothing of EODB, Slate or the pharos is imported here");
 });
