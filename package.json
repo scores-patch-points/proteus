@@ -6,5 +6,5 @@
   "private": true,
   "bin": { "proteus": "bin/proteus.mjs" },
   "engines": { "node": ">=20" },
-  "scripts": { "test": "node --test test/vfile.test.mjs test/manage.test.mjs test/serve.test.mjs test/audio.test.mjs test/lgfold.test.mjs test/docfold.test.mjs test/export.test.mjs" }
+  "scripts": { "test": "node --test test/vfile.test.mjs test/manage.test.mjs test/serve.test.mjs test/audio.test.mjs test/lgfold.test.mjs test/docfold.test.mjs test/export.test.mjs test/fps.test.mjs" }
 }

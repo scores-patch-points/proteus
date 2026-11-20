@@ -15,7 +15,7 @@ Makes projected files from what other repos wrote to the pharos, and weaves the 
 
 ```
 proteus record --project P --sequence S --root <project folder>   # weave the recipe: pure, instant, no ffmpeg
-proteus record ... --build [--deep] [--audio] [--lg]                               # also build the header (ffmpeg for uncached chunks) and record size + hash
+proteus record ... --build [--deep] [--audio] [--lg] [--fps N]                           # also build the header (ffmpeg for uncached chunks) and record size + hash
 proteus check  --project P --sequence S [--deep]                  # rebuild from the recorded recipe alone; weave the result
 proteus status --project P --sequence S                           # the live recipe and the latest check (reads only the pharos)
 proteus serve [--port 8787]                                       # serve every live recipe at /v/<recipe>.mp4 by byte range (HEAD, Range, 416); 127.0.0.1 only
