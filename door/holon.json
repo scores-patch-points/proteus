@@ -2,6 +2,6 @@
   "name": "proteus",
   "ground": ["placement", "vfile-pin", "vfile-evict"],
   "figure": [],
-  "pattern": ["vfile", "vfile-check", "vfile-evicted"],
-  "out": ["vfile", "vfile-evicted"]
+  "pattern": ["vfile", "vfile-check", "vfile-evicted", "vfile-export"],
+  "out": ["vfile", "vfile-evicted", "vfile-export"]
 }

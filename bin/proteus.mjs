@@ -3,6 +3,8 @@
 //   proteus record --project P --sequence S [--root DIR] [--build] [--deep] [--audio] [--lg]   weave the recipe (--audio: with sound; --lg: long-GOP picture, ~10x smaller); --build also builds the header (runs ffmpeg for uncached chunks)
 //   proteus check  --project P --sequence S [--deep]                          rebuild from the recorded recipe alone and weave the result
 //   proteus status --project P --sequence S                                    the live recipe and the latest check (reads only the pharos)
+//   proteus export --project P --sequence S --to FILE [--recipe PREFIX] [--force] [--allow-differs]   write a recipe out as a real file, verified, and weave a vfile-export entry
+//   proteus exports [--project P] [--verify]                                   what has been written out: still there? changed? replaced by a newer recipe?
 //   proteus sweep [--dry]                                                      honour vfile-evict / vfile-pin entries: drop cached chunks nothing else needs, weave vfile-evicted
 //   proteus serve [--port 8787] [--host 127.0.0.1]                             serve every live recipe as /v/<recipe>.mp4 by byte range (HEAD, Range, 416)
 // common: --pharos <folder|name> (default $PHAROS, then ~/.pharos/proteus)   --by <writer> (default proteus)
@@ -13,6 +15,9 @@ try {
   if (cmd === "sweep") { const ph = new D.Pharos({ dir: D.pharosDir(f.pharos), lib: await D.loadLib() }); out({ pharos: ph.name, ...MG.sweep(ph, f.by || "proteus", { dry: !!f.dry }) }); process.exit(0); }
   if (cmd === "serve") { const { createServer } = await import("../lib/serve.mjs"); const ph = new D.Pharos({ dir: D.pharosDir(f.pharos), lib: await D.loadLib() }), port = +f.port || 8787, host = f.host || "127.0.0.1";
     createServer(ph, { log: (m) => console.error(m) }).listen(port, host, () => console.error(`proteus serving ${ph.name} at http://${host}:${port}/status  (files at /v/<recipe>.mp4)`)); await new Promise(() => {}); }
+  if (cmd === "export") { const EX = await import("../lib/export.mjs"); const ph = new D.Pharos({ dir: D.pharosDir(f.pharos), lib: await D.loadLib() });
+    out({ pharos: ph.name, ...(await EX.exportRecipe(ph, f.by || "proteus", { project: f.project, sequence: f.sequence, recipe: f.recipe, to: f.to, force: !!f.force, allowDiffers: !!f["allow-differs"] })) }); process.exit(0); }
+  if (cmd === "exports") { const EX = await import("../lib/export.mjs"); const ph = new D.Pharos({ dir: D.pharosDir(f.pharos), lib: await D.loadLib() }); out({ pharos: ph.name, exports: EX.listExports(ph, { project: f.project, recipe: f.recipe, verify: !!f.verify }) }); process.exit(0); }
   if (!["record", "check", "status"].includes(cmd) || !f.project || !f.sequence) { console.error("usage: proteus <record|check|status|sweep> --project P --sequence S [--pharos D] [--root DIR] [--by W] [--build] [--deep]"); process.exit(2); }
   const ph = new D.Pharos({ dir: D.pharosDir(f.pharos), lib: await D.loadLib() }), q = { project: f.project, sequence: f.sequence }, by = f.by || "proteus";
   if (cmd === "status") {

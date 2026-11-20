@@ -19,6 +19,8 @@ proteus record ... --build [--deep] [--audio] [--lg]                            
 proteus check  --project P --sequence S [--deep]                  # rebuild from the recorded recipe alone; weave the result
 proteus status --project P --sequence S                           # the live recipe and the latest check (reads only the pharos)
 proteus serve [--port 8787]                                       # serve every live recipe at /v/<recipe>.mp4 by byte range (HEAD, Range, 416); 127.0.0.1 only
+proteus export --project P --sequence S --to FILE   # write a recipe out as a real, verified file (or --recipe <prefix> for an old version); weaves vfile-export
+proteus exports [--project P] [--verify]            # what has been written out: present, changed, missing, or stale (a newer recipe replaced it)
 proteus sweep [--dry]                                             # honour EODB's vfile-evict / vfile-pin entries: drop only the cached chunks nothing else needs, weave vfile-evicted
 # common: --pharos <folder|name> (default $PHAROS, then ~/.pharos/proteus)   --by <writer>
 ```
